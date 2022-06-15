@@ -14,7 +14,7 @@ on:
 
 jobs:
   build_and_push:
-    name: Prepare variables
+    name: Build and Push
     runs-on: ["self-hosted", "can-run-small-job"]
     timeout-minutes: 1
     outputs:
