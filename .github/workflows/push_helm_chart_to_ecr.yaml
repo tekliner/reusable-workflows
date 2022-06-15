@@ -20,8 +20,6 @@ jobs:
     outputs:
       chart_tag: ${{ steps.form_chart_tag.outputs.value }}
     steps:
-      - name: Extract branch name
-        run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
       - name: Form Chart Tag name
         id: form_chart_tag
         run: |
