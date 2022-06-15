@@ -13,7 +13,7 @@ on:
         type: string
 
 jobs:
-  setup:
+  build_and_push:
     name: Prepare variables
     runs-on: ["self-hosted", "can-run-small-job"]
     timeout-minutes: 1
@@ -38,20 +38,13 @@ jobs:
           cond: ${{ github.event_name == 'pull_request' }}
           if_true: pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
           if_false: ${{ steps.extract_branch.outputs.branch }}-${{ github.run_number }}
-
-  build_and_push:
-    needs: setup
-    name: Create and push helm package
-    timeout-minutes: 5
-    runs-on: ["self-hosted", "can-run-small-job"]
-    steps:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: ${{ needs.setup.outputs.role_arn }}
-          role-session-name: ${{ needs.setup.outputs.role_session_name }}
+          role-to-assume: ${{ steps.set_roles.outputs.role_arn }}
+          role-session-name: ${{ steps.set_roles.outputs.role_session_name }}
           aws-region: ${{ inputs.aws_region }}
           mask-aws-account-id: "no"
       - name: Install helm
@@ -66,7 +59,7 @@ jobs:
             --password-stdin ${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com
       - name: Create and push package to ECR
         run: |
-          helm package ${{ inputs.project_name }} --version ${PACKAGE_TAG}
-          helm push ${{ inputs.project_name }}-${PACKAGE_TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
-          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}-${PACKAGE_TAG}"
+          helm package ${{ inputs.project_name }} --version ${{ steps.form_chart_tag.outputs.value }}
+          helm push ${{ inputs.project_name }}-${{ steps.form_chart_tag.outputs.value }}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
+          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}-${{ steps.form_chart_tag.outputs.value }}"
 
