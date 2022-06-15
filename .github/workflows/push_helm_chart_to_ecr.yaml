@@ -18,33 +18,25 @@ jobs:
     runs-on: ["self-hosted", "can-run-small-job"]
     timeout-minutes: 1
     outputs:
-      role_arn: ${{ steps.set_roles.outputs.role_arn }}
-      role_session_name: ${{ steps.set_roles.outputs.role_session_name }}
       chart_tag: ${{ steps.form_chart_tag.outputs.value }}
     steps:
-      - id: set_roles
-        run: |
-          ROLE_ARN="arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.project_name }}"
-          ROLE_SESSION_NAME="github_actions_ci_${{ inputs.project_name }}"
-          echo "::set-output name=role_arn::${ROLE_ARN}"
-          echo "::set-output name=role_session_name::${ROLE_SESSION_NAME}"
       - name: Extract branch name
         run: echo "::set-output name=branch::${GITHUB_REF#refs/heads/}"
-        id: extract_branch
       - name: Form Chart Tag name
         id: form_chart_tag
-        uses: haya14busa/action-cond@v1
-        with:
-          cond: ${{ github.event_name == 'pull_request' }}
-          if_true: pr-${{ github.event.pull_request.number }}-${{ github.run_number }}
-          if_false: ${{ steps.extract_branch.outputs.branch }}-${{ github.run_number }}
+        run: |
+          TAG=${GITHUB_REF#refs/heads/}-${{ github.run_number }}-${{ github.run_attempt }}
+          if [[ ${{ github.event_name }} == "pull_request" ]] then;
+            TAG=pr-${{ github.event.pull_request.number }}-${{ github.run_number }}-${{ github.run_attempt }}
+          fi
+          echo "::set-output name=value::${TAG}"
       - name: Checkout
         uses: actions/checkout@v2
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: ${{ steps.set_roles.outputs.role_arn }}
-          role-session-name: ${{ steps.set_roles.outputs.role_session_name }}
+          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.project_name }}
+          role-session-name: github_actions_ci_${{ inputs.project_name }}
           aws-region: ${{ inputs.aws_region }}
           mask-aws-account-id: "no"
       - name: Install helm
@@ -53,10 +45,11 @@ jobs:
           version: v3.9.0
       - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password \
-            --region ${{ inputs.aws_region }} | helm registry login \
+          aws ecr get-login-password --region ${{ inputs.aws_region }} \ 
+          | helm registry login \
             --username AWS \
-            --password-stdin ${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com
+            --password-stdin \
+            ${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com
       - name: Create and push package to ECR
         run: |
           helm package ${{ inputs.project_name }} --version ${{ steps.form_chart_tag.outputs.value }}
