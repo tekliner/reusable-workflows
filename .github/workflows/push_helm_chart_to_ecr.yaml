@@ -47,7 +47,7 @@ jobs:
       - name: Create and push package to ECR
         run: |
           BRANCH_NAME="${GITHUB_REF#refs/heads/}"
-          BRUNCH_NAME=${BRUNCH_NAME//[_.\/\\]/_}
+          BRUNCH_NAME=${BRUNCH_NAME//[_.\/\\]/-}
           TAG="v${{ github.run_number }}.${{ github.run_attempt }}-${BRANCH_NAME}"
           helm package ${{ inputs.project_name }} --version ${TAG}
           helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
