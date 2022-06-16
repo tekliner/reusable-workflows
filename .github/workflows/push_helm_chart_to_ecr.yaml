@@ -52,11 +52,10 @@ jobs:
           version: v3.9.0
       - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password --region "${{ inputs.aws_region }}" \ 
-            | helm registry login \
+          aws ecr get-login-password \
+            --region "${{ inputs.aws_region }}" | helm registry login \
             --username AWS \
-            --password-stdin \ 
-            "${{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
+            --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
       - name: Create and push package to ECR
         run: |
           helm package ${{ inputs.project_name }} --version ${{ steps.form_chart_tag.outputs.value }}
