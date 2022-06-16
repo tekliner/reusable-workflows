@@ -3,12 +3,19 @@ on:
   workflow_call:
     inputs:
       project_name:
+        description: "Name of project"
+        required: true
+        type: string
+      role_project_name:
+        description: "Name of project in role. Usually the same as project_name"
         required: true
         type: string
       aws_account_id:
+        description: "AWS account id for ECR"
         required: true
         type: string
       aws_region:
+        description: "AWS region for ECR"
         required: true
         type: string
 
@@ -33,8 +40,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.project_name }}
-          role-session-name: github_actions_ci_${{ inputs.project_name }}
+          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.role_project_name }}
+          role-session-name: github_actions_ci_${{ inputs.role_project_name }}
           aws-region: ${{ inputs.aws_region }}
           mask-aws-account-id: "no"
       - name: Install helm
