@@ -50,4 +50,3 @@ jobs:
           helm package ${{ inputs.project_name }} --version ${TAG}
           helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
           echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}-${TAG}"
-
