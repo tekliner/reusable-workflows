@@ -1,0 +1,53 @@
+name: Build and Push Helm chart
+on:
+  workflow_call:
+    inputs:
+      project_name:
+        description: "Name of project"
+        required: true
+        type: string
+      role_project_name:
+        description: "Name of project in role. Usually the same as project_name"
+        required: true
+        type: string
+      aws_account_id:
+        description: "AWS account id for ECR"
+        required: true
+        type: string
+      aws_region:
+        description: "AWS region for ECR"
+        required: true
+        type: string
+
+jobs:
+  build_and_push:
+    name: Build and Push
+    runs-on: ["self-hosted", "can-run-small-job"]
+    timeout-minutes: 1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.role_project_name }}
+          role-session-name: github_actions_ci_${{ inputs.role_project_name }}
+          aws-region: ${{ inputs.aws_region }}
+          mask-aws-account-id: "no"
+      - name: Install helm
+        uses: azure/setup-helm@v1.1
+        with:
+          version: v3.9.0
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password \
+            --region "${{ inputs.aws_region }}" | helm registry login \
+            --username AWS \
+            --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
+      - name: Create and push package to ECR
+        run: |
+          BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}" | tr '_' '-')
+          TAG="v${{ github.run_number }}.${{ github.run_attempt }}-${BRANCH_NAME}"
+          helm package ${{ inputs.project_name }} --version ${TAG}
+          helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
+          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}:${TAG}"
