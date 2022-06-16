@@ -24,18 +24,7 @@ jobs:
     name: Build and Push
     runs-on: ["self-hosted", "can-run-small-job"]
     timeout-minutes: 1
-    outputs:
-      chart_tag: ${{ steps.form_chart_tag.outputs.value }}
     steps:
-      - name: Form Chart Tag name
-        id: form_chart_tag
-        run: |
-          TAG="${{ github.run_number }}.${{ github.run_attempt }}-test-brunch"
-          if [[ "${{ github.event_name }}" == "pull_request" ]]
-          then
-            TAG="${{ github.event.pull_request.number }}.${{ github.run_number }}.${{ github.run_attempt }}-pr"
-          fi
-          echo "::set-output name=value::${TAG}"
       - name: Checkout
         uses: actions/checkout@v2
       - name: Configure AWS credentials
@@ -57,7 +46,8 @@ jobs:
             --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
       - name: Create and push package to ECR
         run: |
-          helm package ${{ inputs.project_name }} --version ${{ steps.form_chart_tag.outputs.value }}
-          helm push ${{ inputs.project_name }}-${{ steps.form_chart_tag.outputs.value }}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
-          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}-${{ steps.form_chart_tag.outputs.value }}"
+          TAG="${{ github.run_number }}.${{ github.run_attempt }}-test-brunch"
+          helm package ${{ inputs.project_name }} --version ${TAG}
+          helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
+          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}-${TAG}"
 
