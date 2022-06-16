@@ -31,7 +31,7 @@ jobs:
         id: form_chart_tag
         run: |
           
-          TAG="${{ github.run_number }}.${{ github.run_attempt }}-test-brunch"
+          TAG="${{ github.run_number }}.${{ github.run_attempt }}-master"
           if [[ "${{ github.event_name }}" == "pull_request" ]]
           then
             TAG="${{ github.event.pull_request.number }}.${{ github.run_number }}.${{ github.run_attempt }}-pr"
@@ -53,9 +53,9 @@ jobs:
       - name: Login to Amazon ECR
         run: |
           aws ecr get-login-password \
-            --region us-east-1 | helm registry login \
+            --region "${{ inputs.aws_region }}" | helm registry login \
             --username AWS \
-            --password-stdin 973926868082.dkr.ecr.us-east-1.amazonaws.com
+            --password-stdin "{{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
       - name: Create and push package to ECR
         run: |
           helm package ${{ inputs.project_name }} --version ${{ steps.form_chart_tag.outputs.value }}
