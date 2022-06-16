@@ -31,7 +31,7 @@ jobs:
         id: form_chart_tag
         run: |
           
-          TAG="${{ github.run_number }}.${{ github.run_attempt }}-${GITHUB_REF#refs/heads/}."
+          TAG="${{ github.run_number }}.${{ github.run_attempt }}-test-brunch"
           if [[ "${{ github.event_name }}" == "pull_request" ]]
           then
             TAG="${{ github.event.pull_request.number }}.${{ github.run_number }}.${{ github.run_attempt }}-pr"
