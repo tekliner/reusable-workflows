@@ -19,6 +19,14 @@ on:
         required: true
         type: string
 
+permissions:
+  id-token: write
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+  statuses: write
+
 jobs:
   build_and_push:
     name: Build and Push
