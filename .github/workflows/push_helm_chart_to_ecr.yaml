@@ -43,7 +43,7 @@ jobs:
           aws ecr get-login-password \
             --region "${{ inputs.aws_region }}" | helm registry login \
             --username AWS \
-            --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.us-east-1.amazonaws.com"
+            --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com"
       - name: Create and push package to ECR
         run: |
           BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}" | tr '_' '-')
