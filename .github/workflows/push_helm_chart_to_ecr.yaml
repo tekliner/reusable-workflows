@@ -25,7 +25,6 @@ permissions:
   checks: read
   contents: read
   pull-requests: read
-  statuses: write
 
 jobs:
   build_and_push:
