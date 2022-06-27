@@ -13,7 +13,9 @@ jobs:
     uses: tekliner/reusable-workflows/.github/workflows/test.yaml@IN-3695_reusable_workflow_for_deploy_helm_charts
     with:
       build_and_push_env: |
-        IMAGE_REPOSITORY: xxxxxxx.us-east-1.ecr/blabla
-        IMAGE_TAG: master-12-3
+        {
+          "IMAGE_REPOSITORY": "xxxxxxx.us-east-1.ecr/blabla",
+          "IMAGE_TAG": "master-12-3"
+        }
       build_and_push_run: |
         echo "::notice title=${IMAGE_REPOSITORY}:${IMAGE_TAG}::Done"
