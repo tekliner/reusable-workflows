@@ -3,7 +3,10 @@ on:
   workflow_call:
     inputs:
       # BUILD and PUSH
-      build_and_push:
+      build_and_push_env:
+        type: string
+        required: true
+      build_and_push_run:
         type: string
         required: true
 
@@ -29,7 +32,7 @@ jobs:
         env: |
           ${{ inputs.build_and_push_env }}
         run: | 
-          ${{ inputs.build_and_push }}
+          ${{ inputs.build_and_push_run }}
       - name: Add notice with release info
         run: |
           MESSAGE="
