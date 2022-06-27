@@ -4,7 +4,7 @@ on:
     inputs:
       # BUILD and PUSH
       build_and_push_step_env:
-        type: environment
+        type: string
         required: true
       build_and_push_step_run:
         type: string
