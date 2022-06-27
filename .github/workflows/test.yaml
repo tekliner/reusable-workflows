@@ -23,11 +23,11 @@ jobs:
   deploy:
     name: Install helm
     timeout-minutes: 20
-    runs-on: ubuntu-latest
-    if: always()
+    runs-on: [self-hosted, can-run-small-job]
     steps:
       - name: Build and push image to ECR
-        ${{ build_and_push }}
+        run: | 
+          ${{ build_and_push }}
       - name: Add notice with release info
         run: |
           MESSAGE="
