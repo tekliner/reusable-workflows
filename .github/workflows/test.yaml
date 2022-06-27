@@ -23,7 +23,7 @@ jobs:
   deploy:
     name: Install helm
     timeout-minutes: 20
-    runs-on: [self-hosted, can-run-small-job]
+    runs-on: ubuntu-latest
     steps:
       - name: Build and push image to ECR
         run: | 
