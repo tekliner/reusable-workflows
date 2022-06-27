@@ -55,7 +55,7 @@ on:
         description: |
           Environment variables in json string format
           # example:
-          build_and_push_step_env |
+          build_and_push_step_env: |
             {
               "ECR_REGISTRY": "716309063777.dkr.ecr.us-east-1.amazonaws.com",
               "ECR_REPO": "ch-file-writer",
