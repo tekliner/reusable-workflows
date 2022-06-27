@@ -24,15 +24,14 @@ permissions:
 
 jobs:
   deploy:
-    name: Install helm ${{ inputs.chart_release }} release
+    name: Install helm
     timeout-minutes: 20
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Build and push image to ECR
         env: ${{ inputs.build_and_push_step_env }}
-        run: |
-          ${{ inputs.build_and_push_step_run }}
+        run: ${{ inputs.build_and_push_step_run }}
       - name: Add notice with release info
         run: |
           MESSAGE="
