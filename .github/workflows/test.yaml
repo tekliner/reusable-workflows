@@ -27,7 +27,7 @@ jobs:
     steps:
       - name: Build and push image to ECR
         run: | 
-          ${{ build_and_push }}
+          ${{ inputs.build_and_push }}
       - name: Add notice with release info
         run: |
           MESSAGE="
