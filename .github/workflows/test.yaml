@@ -3,10 +3,7 @@ on:
   workflow_call:
     inputs:
       # BUILD and PUSH
-      build_and_push_step_env:
-        type: string
-        required: true
-      build_and_push_step_run:
+      build_and_push:
         type: string
         required: true
 
@@ -30,8 +27,7 @@ jobs:
     if: always()
     steps:
       - name: Build and push image to ECR
-        env: ${{ inputs.build_and_push_step_env }}
-        run: ${{ inputs.build_and_push_step_run }}
+        ${{ build_and_push }}
       - name: Add notice with release info
         run: |
           MESSAGE="

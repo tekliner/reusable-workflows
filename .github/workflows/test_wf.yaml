@@ -12,7 +12,8 @@ jobs:
   build_and_push_master:
     uses: tekliner/reusable-workflows/.github/workflows/test.yaml@IN-3695_reusable_workflow_for_deploy_helm_charts
     with:
-      build_and_push_step_env: |
-        ENV_1: Pipiska
-      build_and_push_step_run: |
-        echo "::notice title=Installed chart:: ${ENV_1}"
+      build_and_push: |
+        env: 
+          ENV_1: Pipiska
+        run: |
+          echo "::notice title=Installed chart:: ${ENV_1}"
