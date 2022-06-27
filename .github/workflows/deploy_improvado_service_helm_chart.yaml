@@ -50,13 +50,32 @@ on:
         description: "Name of AWS EKS cluster"
         type: string
         required: true
-      # BUILD and PUSH
+      # BUILD and PUSH step
       build_and_push_step_env:
-        type: environment
-        required: true
-      build_and_push_step_run:
+        description: |
+          Environment variables in json string format
+          # example:
+          build_and_push_step_env |
+            {
+              "ECR_REGISTRY": "716309063777.dkr.ecr.us-east-1.amazonaws.com",
+              "ECR_REPO": "ch-file-writer",
+              "IMAGE_TAG": "master-${{ github.run_number }}-${{ github.run_attempt }}"
+            }
         type: string
-        required: true
+        required: false
+      build_and_push_step_run:
+        description: "Step for build and push image custom for many repos"
+        type: string
+        required: false
+        default: |
+          IMAGE_FULL_NAME="${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+          PYTHON_TAG=$(grep --max-count 1 -P '^ARG PYTHON_IMAGE=python:.+$' ./Dockerfile | cut -d "=" -f 2)
+          
+          docker build . \
+          --tag ${IMAGE_FULL_NAME} \
+          --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_TAG}
+          docker push "${IMAGE_FULL_NAME}"
+          echo "::notice title=Pushed image to repo ${IMAGE_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
 
 concurrency:
   group: ${{ github.ref }}
@@ -92,7 +111,7 @@ jobs:
           role-session-name: github_actions_ecr_${{ inputs.chart_name }}_${{ inputs.chart_release }}
           aws-region: ${{ inputs.aws_region }}
           mask-aws-account-id: "no"
-      - name: Login to Amazon ECR
+      - name: Login Helm to Amazon ECR
         run: |
           aws ecr get-login-password | helm registry login \
             --username AWS \
@@ -109,12 +128,11 @@ jobs:
         run: |
           helm pull oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/{{ inputs.chart_name }} \
             --version ${{ inputs.chart_version }}
-
       - name: Build and push image to ECR
-        env: ${{ inputs.build_and_push_step_env }}
+        env:
+          ${{ fromJson( inputs.build_and_push_step_env ) }}
         run: |
           ${{ inputs.build_and_push_step_run }}
-
       - name: Install/upgrade helm chart to Kubernetes cluster
         run: |
           helm upgrade ${{ inputs.chart_release }} ./${{ inputs.chart_name }}-${{ inputs.chart_version }}.tgz \
