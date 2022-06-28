@@ -74,11 +74,11 @@ on:
         required: false
         default: |
           IMAGE_FULL_NAME="${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
-          PYTHON_TAG=$(grep --max-count 1 -P '^ARG PYTHON_IMAGE=python:.+$' ./Dockerfile | cut -d "=" -f 2)
+          PYTHON_IMAGE=$(grep --max-count 1 -P '^ARG PYTHON_IMAGE=python:.+$' ./Dockerfile | cut -d "=" -f 2)
           
           docker build . \
             --tag ${IMAGE_FULL_NAME} \
-            --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_TAG}
+            --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_IMAGE}
           docker push "${IMAGE_FULL_NAME}"
           echo "::notice title=Pushed image to repo ${IMAGE_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
 
@@ -107,13 +107,13 @@ jobs:
         uses: docker/login-action@v1
         with:
           registry: harbor.tools.improvado.io
-          username: ${{ secrets.GH_ACTIONS_HARBOR_LOGIN }}
-          password: ${{ secrets.GH_ACTIONS_HARBOR_PASSWORD }}
+          username: ${{ secrets.HARBOR_LOGIN }}
+          password: ${{ secrets.HARBOR_PASSWORD }}
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.chart_name }}
-          role-session-name: github_actions_ecr_${{ inputs.chart_name }}_${{ inputs.chart_release }}
+          role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
           aws-region: ${{ inputs.aws_region }}
           mask-aws-account-id: "no"
       - name: Login Helm to Amazon ECR
