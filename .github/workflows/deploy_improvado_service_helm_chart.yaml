@@ -1,6 +1,13 @@
 name: Deploy Helm chart to cluster
 on:
   workflow_call:
+    secrets:
+      HARBOR_LOGIN:
+        required: true
+        description: Harbor login to pull images
+      HARBOR_PASSWORD:
+        required: true
+        description: Harbor password to pull images
     inputs:
       runs_on:
         description: "Job's runs-on parameter"
