@@ -134,10 +134,8 @@ jobs:
           helm pull oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/{{ inputs.chart_name }} \
             --version ${{ inputs.chart_version }}
       - name: Build and push image to ECR
-        env:
-          ${{ fromJson( inputs.build_and_push_step_env ) }}
-        run: |
-          ${{ inputs.build_and_push_step_run }}
+        env: ${{ fromJson( inputs.build_and_push_step_env ) }}
+        run: ${{ inputs.build_and_push_step_run }}
       - name: Install/upgrade helm chart to Kubernetes cluster
         run: |
           helm upgrade ${{ inputs.chart_release }} ./${{ inputs.chart_name }}-${{ inputs.chart_version }}.tgz \

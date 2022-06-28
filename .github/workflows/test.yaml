@@ -29,8 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Build and push image to ECR
-        env:
-          ${{ fromJson( inputs.build_and_push_env ) }}
+        env: ${{ fromJson( inputs.build_and_push_env ) }}
         run: ${{ inputs.build_and_push_run }}
       - name: Add notice with release info
         run: |
