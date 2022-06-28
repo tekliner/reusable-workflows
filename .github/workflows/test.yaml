@@ -1,0 +1,40 @@
+name: Deploy Helm chart to cluster
+on:
+  workflow_call:
+    inputs:
+      # BUILD and PUSH
+      build_and_push_env:
+        type: string
+        required: true
+      build_and_push_run:
+        type: string
+        required: true
+
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write
+  actions: read
+  checks: read
+  contents: read
+  pull-requests: read
+  statuses: write
+
+jobs:
+  deploy:
+    name: Install helm
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and push image to ECR
+        env:
+          ${{ fromJson( inputs.build_and_push_env ) }}
+        run: ${{ inputs.build_and_push_run }}
+      - name: Add notice with release info
+        run: |
+          MESSAGE="
+          Lol kek chebureck
+          "
+          echo "::notice title=Installed chart::${MESSAGE//$'\n'/'%0A'}"

@@ -2,6 +2,11 @@ name: Deploy Helm chart to cluster
 on:
   workflow_call:
     inputs:
+      runs_on:
+        description: "Job's runs-on parameter"
+        type: string
+        required: false
+        default: '["self-hosted", "can-run-small-job"]'
       # Helm chart parameters
       chart_name:
         description: "Helm chart name e.g. <helm-uls-component>"
@@ -72,13 +77,13 @@ on:
           PYTHON_TAG=$(grep --max-count 1 -P '^ARG PYTHON_IMAGE=python:.+$' ./Dockerfile | cut -d "=" -f 2)
           
           docker build . \
-          --tag ${IMAGE_FULL_NAME} \
-          --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_TAG}
+            --tag ${IMAGE_FULL_NAME} \
+            --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_TAG}
           docker push "${IMAGE_FULL_NAME}"
           echo "::notice title=Pushed image to repo ${IMAGE_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
 
 concurrency:
-  group: ${{ github.ref }}
+  group: ${{ github.ref }}--deploy-via-helm
   cancel-in-progress: false
 
 permissions:
@@ -93,7 +98,7 @@ jobs:
   deploy:
     name: Install helm ${{ inputs.chart_release }} release
     timeout-minutes: 20
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJson(inputs.runs_on) }}
     if: always()
     steps:
       - name: Checkout
