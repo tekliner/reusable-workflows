@@ -37,11 +37,11 @@ on:
         type: string
       # Image parameters (docker image)
       image_repository:
-        description: "image repository"
+        description: 'Image repository (e.g. "dsas")'
         type: string
         required: true
       image_tag:
-        description: "image tag"
+        description: "Image tag"
         type: string
         required: true
       image_tag_path:
@@ -75,7 +75,7 @@ on:
               "AWS_ACCOUNT_ID": "627003544259",
               "AWS_REGIONS": "us-east-1,eu-central-1",
               "ECR_REPO": "ch-file-writer",
-              "IMAGE_TAG": "${github.ref_name}-${{ github.run_number }}-${{ github.run_attempt }}"
+              "IMAGE_TAG": "master-1-1"
             }
         type: string
         required: false
@@ -128,7 +128,7 @@ jobs:
         id: set_default_aws_region
         run: |
           IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
-          echo "::set-output region=${REGIONS[0]}"
+          echo "::set-output name=region::${REGIONS[0]}"
       - name: Login to Harbor
         uses: docker/login-action@v1
         with:
@@ -138,10 +138,14 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.chart_name }}
+          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{inputs.image_repository}}-test-nz # FIXME
           role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
-          aws-region: ${{steps.set_default_aws_region.outputs.region }}
+          aws-region: ${{steps.set_default_aws_region.outputs.region}}
           mask-aws-account-id: "no"
+      - name: Install helm
+        uses: azure/setup-helm@v1.1
+        with:
+          version: v3.9.0
       - name: Login to Amazon ECR
         run: |
           IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
@@ -152,7 +156,7 @@ jobs:
             echo ${PASSWORD} | helm registry login \
               --username AWS \
               --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
-            echo ${PASSWORD} | docker login login \
+            echo ${PASSWORD} | docker login \
               --username AWS \
               --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
           done
@@ -160,13 +164,9 @@ jobs:
         run: |
           aws eks update-kubeconfig \
             --name ${{ inputs.cluster_name }}
-      - name: Install helm
-        uses: azure/setup-helm@v1.1
-        with:
-          version: v3.9.0
       - name: Pull helm chart from ECR
         run: |
-          helm pull oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/{{ inputs.chart_name }} \
+          helm pull oci://${{inputs.aws_account_id}}.dkr.ecr.${{steps.set_default_aws_region.outputs.region}}.amazonaws.com/{{inputs.chart_name}} \
             --version ${{ inputs.chart_version }}
       - name: Build and push image to ECR
         env: ${{ fromJSON( inputs.build_and_push_step_env ) }}
@@ -184,7 +184,7 @@ jobs:
       - name: Add notice with release info
         run: |
           MESSAGE="
-          Chart: ${{ inputs.chart }};
+          Chart: ${{ inputs.chart_name }};
           Release: ${{ inputs.chart_release }};
           Version: ${{ inputs.chart_version }};
           Image Tag: ${{ inputs.image_tag }};

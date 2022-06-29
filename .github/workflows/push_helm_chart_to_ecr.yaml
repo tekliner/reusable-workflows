@@ -41,13 +41,13 @@ jobs:
         id: set_default_aws_region
         run: |
           IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
-          echo "::set-output region=${REGIONS[0]}"
+          echo "::set-output name=region::${REGIONS[0]}"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.role_project_name }}
           role-session-name: github_actions_ci_${{ inputs.role_project_name }}
-          aws-region: ${{steps.set_default_aws_region.outputs.region }}
+          aws-region: ${{steps.set_default_aws_region.outputs.region}}
           mask-aws-account-id: "no"
       - name: Install helm
         uses: azure/setup-helm@v1.1
@@ -60,7 +60,7 @@ jobs:
           for REGION in "${REGIONS[@]}"
           do
             aws ecr get-login-password \
-              --region "${REGION}" 
+              --region "${REGION}" \
             | helm registry login \
               --username AWS \
               --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
