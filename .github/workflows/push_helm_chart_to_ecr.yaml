@@ -15,7 +15,10 @@ on:
         required: true
         type: string
       aws_region:
-        description: 'AWS region for ECR. Also works with the comma-separated list of regions, e.g. "eu-central-1,us-east-1"'
+        description: | 
+          AWS region for ECR.
+          Also works with a comma-separated list of regions, e.g. "eu-central-1,us-east-1".
+          In case of a list, the first region is used to configure aws-cli
         required: true
         type: string
 
@@ -30,16 +33,21 @@ jobs:
   build_and_push:
     name: Build and Push
     runs-on: ["self-hosted", "can-run-small-job"]
-    timeout-minutes: 1
+    timeout-minutes: 2
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Set default AWS region 
+        id: set_default_aws_region
+        run: |
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+          echo "::set-output region=${REGIONS[0]}"
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
           role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.role_project_name }}
           role-session-name: github_actions_ci_${{ inputs.role_project_name }}
-          aws-region: ${{ inputs.aws_region }}
+          aws-region: ${{steps.set_default_aws_region.outputs.region }}
           mask-aws-account-id: "no"
       - name: Install helm
         uses: azure/setup-helm@v1.1
@@ -47,20 +55,26 @@ jobs:
           version: v3.9.0
       - name: Login to Amazon ECRs
         run: |
-          IFS=',' read -r -a regions <<< "${{ inputs.aws_region }}"
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
           
-          for region in "${regions[@]}"
+          for REGION in "${REGIONS[@]}"
           do
             aws ecr get-login-password \
-              --region "${region}" 
+              --region "${REGION}" 
             | helm registry login \
               --username AWS \
-              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${region}.amazonaws.com"
+              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
           done
       - name: Create and push package to ECR
         run: |
           BRANCH_NAME=$(echo "${{github.ref_name}}" | tr '_' '-')
           TAG="v${{ github.run_number }}.${{ github.run_attempt }}-${BRANCH_NAME}"
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+
           helm package ${{ inputs.project_name }} --version ${TAG}
-          helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
-          echo "::notice title=Pushed package::${{ inputs.project_name }} that's been pushed: ${{ inputs.project_name }}:${TAG}"
+          
+          for REGION in "${REGIONS[@]}"
+          do
+            helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com/
+            echo "::notice title=Pushed package::Chart that's been pushed: ${{inputs.project_name}}:${TAG}"
+          done

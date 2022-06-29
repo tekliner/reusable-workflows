@@ -55,7 +55,10 @@ on:
         required: true
         type: string
       aws_region:
-        description: "AWS region for ECR"
+        description: |
+          AWS region for ECR.
+          Also works with a comma-separated list of regions, e.g. "eu-central-1,us-east-1".
+          In case of a list, the first region is used to configure aws-cli
         required: true
         type: string
       cluster_name:
@@ -69,25 +72,36 @@ on:
           # example:
           build_and_push_step_env: |
             {
-              "ECR_REGISTRY": "716309063777.dkr.ecr.us-east-1.amazonaws.com",
+              "AWS_ACCOUNT_ID": "627003544259",
+              "AWS_REGIONS": "us-east-1,eu-central-1",
               "ECR_REPO": "ch-file-writer",
-              "IMAGE_TAG": "master-${{ github.run_number }}-${{ github.run_attempt }}"
+              "IMAGE_TAG": "${github.ref_name}-${{ github.run_number }}-${{ github.run_attempt }}"
             }
         type: string
         required: false
+        default: '{}'
       build_and_push_step_run:
         description: "Step for build and push image custom for many repos"
         type: string
         required: false
         default: |
-          IMAGE_FULL_NAME="${ECR_REGISTRY}/${ECR_REPO}:${IMAGE_TAG}"
+          APP_IMAGE="${ECR_REPO}:${IMAGE_TAG}"
           PYTHON_IMAGE=$(grep --max-count 1 -P '^ARG PYTHON_IMAGE=python:.+$' ./Dockerfile | cut -d "=" -f 2)
           
           docker build . \
-            --tag ${IMAGE_FULL_NAME} \
+            --tag ${APP_IMAGE} \
             --build-arg PYTHON_IMAGE=harbor.tools.improvado.io/hub-cache/library/${PYTHON_IMAGE}
-          docker push "${IMAGE_FULL_NAME}"
-          echo "::notice title=Pushed image to repo ${IMAGE_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
+          
+          IFS=',' read -r -a REGIONS <<< "${AWS_REGIONS}"
+          
+          for REGIONS in "${REGIONS[@]}"
+          do
+            IMAGE_FULL_NAME="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${APP_IMAGE}"
+            docker tag ${APP_IMAGE} ${IMAGE_FULL_NAME}
+            docker push "${IMAGE_FULL_NAME}"
+            echo "::notice title=Pushed image to repo ${ECR_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
+          done
+
 
 concurrency:
   group: ${{ github.ref }}--deploy-via-helm
@@ -105,11 +119,16 @@ jobs:
   deploy:
     name: Install helm ${{ inputs.chart_release }} release
     timeout-minutes: 20
-    runs-on: ${{ fromJson(inputs.runs_on) }}
+    runs-on: ${{ fromJSON(inputs.runs_on) }}
     if: always()
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+      - name: Set default AWS region 
+        id: set_default_aws_region
+        run: |
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+          echo "::set-output region=${REGIONS[0]}"
       - name: Login to Harbor
         uses: docker/login-action@v1
         with:
@@ -121,13 +140,22 @@ jobs:
         with:
           role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{ inputs.chart_name }}
           role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
-          aws-region: ${{ inputs.aws_region }}
+          aws-region: ${{steps.set_default_aws_region.outputs.region }}
           mask-aws-account-id: "no"
-      - name: Login Helm to Amazon ECR
+      - name: Login to Amazon ECR
         run: |
-          aws ecr get-login-password | helm registry login \
-            --username AWS \
-            --password-stdin ${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+          
+          for REGION in "${REGIONS[@]}"
+          do
+            PASSWORD=$(aws ecr get-login-password --region "${REGION}")
+            echo ${PASSWORD} | helm registry login \
+              --username AWS \
+              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
+            echo ${PASSWORD} | docker login login \
+              --username AWS \
+              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
+          done
       - name: Login to Kubernetes cluster
         run: |
           aws eks update-kubeconfig \
@@ -141,7 +169,7 @@ jobs:
           helm pull oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/{{ inputs.chart_name }} \
             --version ${{ inputs.chart_version }}
       - name: Build and push image to ECR
-        env: ${{ fromJson( inputs.build_and_push_step_env ) }}
+        env: ${{ fromJSON( inputs.build_and_push_step_env ) }}
         run: ${{ inputs.build_and_push_step_run }}
       - name: Install/upgrade helm chart to Kubernetes cluster
         run: |
