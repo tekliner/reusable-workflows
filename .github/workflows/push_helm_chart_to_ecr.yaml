@@ -15,7 +15,7 @@ on:
         required: true
         type: string
       aws_region:
-        description: "AWS region for ECR"
+        description: 'AWS region for ECR. Also works with the comma-separated list of regions, e.g. "eu-central-1,us-east-1"'
         required: true
         type: string
 
@@ -45,15 +45,21 @@ jobs:
         uses: azure/setup-helm@v1.1
         with:
           version: v3.9.0
-      - name: Login to Amazon ECR
+      - name: Login to Amazon ECRs
         run: |
-          aws ecr get-login-password \
-            --region "${{ inputs.aws_region }}" | helm registry login \
-            --username AWS \
-            --password-stdin "${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com"
+          IFS=',' read -r -a regions <<< "${{ inputs.aws_region }}"
+          
+          for region in "${regions[@]}"
+          do
+            aws ecr get-login-password \
+              --region "${region}" 
+            | helm registry login \
+              --username AWS \
+              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${region}.amazonaws.com"
+          done
       - name: Create and push package to ECR
         run: |
-          BRANCH_NAME=$(echo "${GITHUB_REF#refs/heads/}" | tr '_' '-')
+          BRANCH_NAME=$(echo "${{github.ref_name}}" | tr '_' '-')
           TAG="v${{ github.run_number }}.${{ github.run_attempt }}-${BRANCH_NAME}"
           helm package ${{ inputs.project_name }} --version ${TAG}
           helm push ${{ inputs.project_name }}-${TAG}.tgz oci://${{ inputs.aws_account_id }}.dkr.ecr.${{ inputs.aws_region }}.amazonaws.com/
