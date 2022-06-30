@@ -14,6 +14,7 @@ on:
         type: string
         required: false
         default: '["self-hosted", "can-run-small-job"]'
+
       # Helm chart parameters
       chart_name:
         description: "Helm chart name e.g. <helm-uls-component>"
@@ -35,6 +36,7 @@ on:
         description: "Path to values.yaml in repo"
         required: true
         type: string
+
       # Image parameters (docker image)
       image_repository:
         description: 'Image repository (e.g. "dsas")'
@@ -49,22 +51,31 @@ on:
         type: string
         default: "image.tag"
         required: false
+
       # AWS parameters
-      aws_account_id:
-        description: "AWS account id for ECR"
+      aws_management_account_id:
+        description: "AWS management account id - for ECR"
         required: true
         type: string
-      aws_region:
+      aws_management_regions:
         description: |
-          AWS region for ECR.
-          Also works with a comma-separated list of regions, e.g. "eu-central-1,us-east-1".
-          In case of a list, the first region is used to configure aws-cli
+          Comma-separated list of regions, e.g. "eu-central-1,us-east-1".
+          Docker images will be pushed to regions from list.
+        required: true
+        type: string
+      aws_prod_account_id:
+        description: "AWS Prod account id - for deployment"
+        required: true
+        type: string
+      aws_prod_region:
+        description: AWS region to deploy application in.
         required: true
         type: string
       cluster_name:
         description: "Name of AWS EKS cluster"
         type: string
         required: true
+
       # BUILD and PUSH step
       build_and_push_step_env:
         description: |
@@ -124,53 +135,72 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v3
+
+      # AWS Management
       - name: Set default AWS region 
-        id: set_default_aws_region
+        id: default_aws_management_region
         run: |
-          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_management_regions}}"
           echo "::set-output name=region::${REGIONS[0]}"
+      - name: Configure AWS Management credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{inputs.aws_management_account_id}}:role/github_actions_ecr_${{inputs.image_repository}}-test-nz # FIXME
+          role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
+          aws-region: ${{steps.default_aws_management_region.outputs.region}}
+          mask-aws-account-id: "no"
       - name: Login to Harbor
         uses: docker/login-action@v1
         with:
           registry: harbor.tools.improvado.io
           username: ${{ secrets.HARBOR_LOGIN }}
           password: ${{ secrets.HARBOR_PASSWORD }}
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1
-        with:
-          role-to-assume: arn:aws:iam::${{ inputs.aws_account_id }}:role/github_actions_ecr_${{inputs.image_repository}}-test-nz # FIXME
-          role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
-          aws-region: ${{steps.set_default_aws_region.outputs.region}}
-          mask-aws-account-id: "no"
       - name: Install helm
         uses: azure/setup-helm@v1.1
         with:
           version: v3.9.0
-      - name: Login to Amazon ECR
+      - name: Login to Amazon ECR (docker)
         run: |
-          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_region}}"
+          IFS=',' read -r -a REGIONS <<< "${{inputs.aws_management_regions}}"
           
           for REGION in "${REGIONS[@]}"
           do
-            PASSWORD=$(aws ecr get-login-password --region "${REGION}")
-            echo ${PASSWORD} | helm registry login \
-              --username AWS \
-              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
-            echo ${PASSWORD} | docker login \
-              --username AWS \
-              --password-stdin "${{inputs.aws_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
+            aws ecr get-login-password \
+              --region "${REGION}" \
+            | docker login \
+                --username AWS \
+                --password-stdin \
+                "${{inputs.aws_management_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
           done
-      - name: Login to Kubernetes cluster
-        run: |
-          aws eks update-kubeconfig \
-            --name ${{ inputs.cluster_name }}
-      - name: Pull helm chart from ECR
-        run: |
-          helm pull oci://${{inputs.aws_account_id}}.dkr.ecr.${{steps.set_default_aws_region.outputs.region}}.amazonaws.com/{{inputs.chart_name}} \
-            --version ${{ inputs.chart_version }}
       - name: Build and push image to ECR
         env: ${{ fromJSON( inputs.build_and_push_step_env ) }}
         run: ${{ inputs.build_and_push_step_run }}
+
+      # AWS Prod
+
+      - name: Configure AWS Prod credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          role-to-assume: arn:aws:iam::${{inputs.aws_prod_account_id}}:role/github_actions_ecr_${{inputs.chart_name}}-test-nz # FIXME
+          role-session-name: github_actions_ecr_ci_${{inputs.chart_name}}_${{inputs.chart_release}}
+          aws-region: ${{inputs.aws_prod_region}}
+          mask-aws-account-id: "no"
+      - name: Login to Amazon ECR (helm)
+        run: |
+          aws ecr get-login-password \
+          | helm registry login \
+            --username AWS \
+            --password-stdin \
+            "${{inputs.aws_management_account_id}}.dkr.ecr.${{inputs.aws_prod_region}}.amazonaws.com"
+      - name: Pull helm chart from ECR
+        run: |
+          helm pull \
+            oci://${{inputs.aws_management_account_id}}.dkr.ecr.${{inputs.aws_prod_region}}.amazonaws.com/${{inputs.chart_name}} \
+            --version ${{inputs.chart_version}}
+      - name: Login to Kubernetes cluster (${{inputs.cluster_name}})
+        run: |
+          aws eks update-kubeconfig \
+            --name ${{ inputs.cluster_name }}
       - name: Install/upgrade helm chart to Kubernetes cluster
         run: |
           helm upgrade ${{ inputs.chart_release }} ./${{ inputs.chart_name }}-${{ inputs.chart_version }}.tgz \
