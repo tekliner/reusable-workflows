@@ -173,7 +173,7 @@ jobs:
                 "${{inputs.aws_management_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
           done
       - name: Build and push image to ECR
-        env: ${{ fromJSON( inputs.build_and_push_step_env ) }}
+        env: ${{ fromJSON(inputs.build_and_push_step_env) }}
         run: ${{ inputs.build_and_push_step_run }}
 
       # AWS Prod
