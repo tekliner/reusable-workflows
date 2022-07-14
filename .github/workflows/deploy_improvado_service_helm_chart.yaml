@@ -137,6 +137,7 @@ jobs:
         uses: actions/checkout@v3
 
       # AWS Management
+
       - name: Set default AWS region 
         id: default_aws_management_region
         run: |
@@ -145,7 +146,7 @@ jobs:
       - name: Configure AWS Management credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{inputs.aws_management_account_id}}:role/github_actions_ecr_${{inputs.image_repository}}-test-nz # FIXME
+          role-to-assume: arn:aws:iam::${{inputs.aws_management_account_id}}:role/github_actions_ecr_${{inputs.image_repository}}
           role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
           aws-region: ${{steps.default_aws_management_region.outputs.region}}
           mask-aws-account-id: "no"
@@ -173,7 +174,7 @@ jobs:
                 "${{inputs.aws_management_account_id}}.dkr.ecr.${REGION}.amazonaws.com"
           done
       - name: Build and push image to ECR
-        env: ${{ fromJSON( inputs.build_and_push_step_env ) }}
+        env: ${{ fromJSON(inputs.build_and_push_step_env) }}
         run: ${{ inputs.build_and_push_step_run }}
 
       # AWS Prod
@@ -181,7 +182,7 @@ jobs:
       - name: Configure AWS Prod credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{inputs.aws_prod_account_id}}:role/github_actions_ecr_${{inputs.chart_name}}-test-nz # FIXME
+          role-to-assume: arn:aws:iam::${{inputs.aws_prod_account_id}}:role/github_actions_ecr_${{inputs.chart_name}}
           role-session-name: github_actions_ecr_ci_${{inputs.chart_name}}_${{inputs.chart_release}}
           aws-region: ${{inputs.aws_prod_region}}
           mask-aws-account-id: "no"
@@ -200,15 +201,15 @@ jobs:
       - name: Login to Kubernetes cluster (${{inputs.cluster_name}})
         run: |
           aws eks update-kubeconfig \
-            --name ${{ inputs.cluster_name }}
+            --name ${{inputs.cluster_name}}
       - name: Install/upgrade helm chart to Kubernetes cluster
         run: |
-          helm upgrade ${{ inputs.chart_release }} ./${{ inputs.chart_name }}-${{ inputs.chart_version }}.tgz \
+          helm upgrade ${{inputs.chart_release}} ./${{inputs.chart_name}}-${{inputs.chart_version}}.tgz \
             --wait \
             --install \
-            -f ${GITHUB_WORKSPACE}/k8s/${{ inputs.values_path }} \
-            -n ${{ inputs.namespace }} \
-            --set ${{ inputs.image_tag_path }}=${{ inputs.image_tag }} \
+            -f ${GITHUB_WORKSPACE}/k8s/${{inputs.values_path}} \
+            -n ${{inputs.namespace}} \
+            --set ${{inputs.image_tag_path}}=${{inputs.image_tag}} \
             --timeout 15m0s \
             --debug
       - name: Add notice with release info
