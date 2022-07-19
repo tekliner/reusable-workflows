@@ -105,14 +105,23 @@ on:
           
           IFS=',' read -r -a REGIONS <<< "${AWS_REGIONS}"
           
-          for REGIONS in "${REGIONS[@]}"
+          for REGION in "${REGIONS[@]}"
           do
             IMAGE_FULL_NAME="${AWS_ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${APP_IMAGE}"
             docker tag ${APP_IMAGE} ${IMAGE_FULL_NAME}
             docker push "${IMAGE_FULL_NAME}"
             echo "::notice title=Pushed image to repo ${ECR_REPO}::Image that was pushed: ${IMAGE_FULL_NAME}"
           done
-
+      management_role_arn:
+        type: string
+        required: false
+        default: ""
+        description: "Role to assume in management account. If not provided, it is constructed from aws_management_account_id and image_repository"
+      prod_role_arn:
+        type: string
+        required: false
+        default: ""
+        description: "Role to assume in prod account. If not provided, it is constructed from aws_prod_account_id and chart_name"
 
 concurrency:
   group: ${{ github.ref }}--deploy-via-helm
@@ -138,17 +147,29 @@ jobs:
 
       # AWS Management
 
-      - name: Set default AWS region 
-        id: default_aws_management_region
+      - name: Set GitHub variables
+        id: set_variables
         run: |
           IFS=',' read -r -a REGIONS <<< "${{inputs.aws_management_regions}}"
-          echo "::set-output name=region::${REGIONS[0]}"
+          echo "::set-output name=default_aws_management_region::${REGIONS[0]}"
+
+          MANAGEMENT_ROLE_ARN="${{inputs.management_role_arn}}"
+          if [[ -z "${MANAGEMENT_ROLE_ARN}" ]]; then
+            MANAGEMENT_ROLE_ARN="arn:aws:iam::${{inputs.aws_management_account_id}}:role/github_actions_ecr_${{inputs.image_repository}}"
+          fi
+          echo "::set-output name=management_role_arn::${MANAGEMENT_ROLE_ARN}"
+
+          PROD_ROLE_ARN="${{inputs.prod_role_arn}}"
+          if [[ -z "${PROD_ROLE_ARN}" ]]; then
+            PROD_ROLE_ARN="arn:aws:iam::${{inputs.aws_prod_account_id}}:role/github_actions_ecr_${{inputs.chart_name}}"
+          fi
+          echo "::set-output name=prod_role_arn::${PROD_ROLE_ARN}"
       - name: Configure AWS Management credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{inputs.aws_management_account_id}}:role/github_actions_ecr_${{inputs.image_repository}}
+          role-to-assume: ${{steps.set_variables.outputs.management_role_arn}}
           role-session-name: github_actions_ecr_ci_${{ inputs.chart_name }}_${{ inputs.chart_release }}
-          aws-region: ${{steps.default_aws_management_region.outputs.region}}
+          aws-region: ${{steps.set_variables.outputs.default_aws_management_region}}
           mask-aws-account-id: "no"
       - name: Login to Harbor
         uses: docker/login-action@v1
@@ -182,7 +203,7 @@ jobs:
       - name: Configure AWS Prod credentials
         uses: aws-actions/configure-aws-credentials@v1
         with:
-          role-to-assume: arn:aws:iam::${{inputs.aws_prod_account_id}}:role/github_actions_ecr_${{inputs.chart_name}}
+          role-to-assume: ${{steps.set_variables.outputs.prod_role_arn}}
           role-session-name: github_actions_ecr_ci_${{inputs.chart_name}}_${{inputs.chart_release}}
           aws-region: ${{inputs.aws_prod_region}}
           mask-aws-account-id: "no"
